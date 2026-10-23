@@ -126,26 +126,46 @@
 
     /* A4 Vector Print Rules */
     @media print {
-      body * {
-        visibility: hidden;
+      @page {
+        size: A4 portrait;
+        margin: 10mm;
       }
-      #invoiceSheet, #invoiceSheet * {
-        visibility: visible;
-      }
-      #invoiceSheet {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100% !important;
-        margin: 0 !important;
-        padding: 24px !important;
-        box-shadow: none !important;
-        border: none !important;
+      body {
         background: #ffffff !important;
-        color: #000000 !important;
+        color: #0f172a !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       .no-print {
         display: none !important;
+      }
+      main {
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        display: block !important;
+      }
+      .grid {
+        display: block !important;
+      }
+      .lg\:col-span-7 {
+        width: 100% !important;
+      }
+      .sticky {
+        position: static !important;
+      }
+      #invoiceSheet {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+        padding: 24px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: auto !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
       }
     }
   </style>
@@ -635,46 +655,23 @@
       });
     }
 
-    function downloadPDF() {
+    async function downloadPDF() {
       const source = document.getElementById('invoiceSheet');
       const invNum = document.getElementById('invoiceNumber').value || 'Invoice';
 
-      // Create an isolated clone container with explicit A4 dimensions
-      const clone = source.cloneNode(true);
-      clone.style.width = '800px';
-      clone.style.minHeight = '1100px';
-      clone.style.padding = '48px';
-      clone.style.background = '#ffffff';
-      clone.style.color = '#0f172a';
-      clone.style.position = 'fixed';
-      clone.style.top = '-9999px';
-      clone.style.left = '0';
-      clone.style.zIndex = '9999';
-      clone.style.borderRadius = '0px';
-      clone.style.boxShadow = 'none';
-      clone.style.border = 'none';
-      document.body.appendChild(clone);
+      // Visual feedback on all export buttons
+      const buttons = document.querySelectorAll('button[onclick="downloadPDF()"]');
+      buttons.forEach(btn => {
+        btn.setAttribute('data-prev-html', btn.innerHTML);
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-emerald-400 mr-1.5"></i> <span>Generating...</span>`;
+      });
 
-      // Re-generate QR code in clone so canvas is 100% rendered
-      const upi = document.getElementById('sellerUPI').value.trim() || 'user@upi';
-      const seller = document.getElementById('sellerName').value || 'Seller';
-      const grandTotal = document.getElementById('prevTotal').innerText.replace('₹', '').trim();
-      const qrTarget = clone.querySelector('#qrcode');
-      if (qrTarget) {
-        qrTarget.innerHTML = '';
-        const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(seller)}&am=${grandTotal}&cu=INR&tn=${encodeURIComponent('Bill ' + invNum)}`;
-        new QRCode(qrTarget, {
-          text: upiUrl,
-          width: 100,
-          height: 100,
-          colorDark: "#020617",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M
-        });
-      }
+      try {
+        if (document.fonts) {
+          await document.fonts.ready;
+        }
 
-      // Small 100ms timeout to ensure clone and QR are drawn in DOM
-      setTimeout(() => {
         const opt = {
           margin: [8, 8, 8, 8],
           filename: `${invNum}.pdf`,
@@ -682,21 +679,25 @@
           html2canvas: { 
             scale: 2, 
             useCORS: true, 
-            scrollY: 0,
+            logging: false,
+            backgroundColor: '#ffffff',
             scrollX: 0,
-            backgroundColor: '#ffffff'
+            scrollY: 0
           },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
-        html2pdf().set(opt).from(clone).save().then(() => {
-          if (clone.parentNode) document.body.removeChild(clone);
-        }).catch(err => {
-          console.error("PDF generation error, fallback to print:", err);
-          if (clone.parentNode) document.body.removeChild(clone);
-          window.print();
+        await html2pdf().set(opt).from(source).save();
+      } catch (err) {
+        console.error("PDF generation error, fallback to print:", err);
+        window.print();
+      } finally {
+        buttons.forEach(btn => {
+          const prev = btn.getAttribute('data-prev-html');
+          if (prev) btn.innerHTML = prev;
+          btn.disabled = false;
         });
-      }, 100);
+      }
     }
 
     renderFormItems();
