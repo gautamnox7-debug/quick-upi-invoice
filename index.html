@@ -636,16 +636,67 @@
     }
 
     function downloadPDF() {
-      const element = document.getElementById('invoiceSheet');
+      const source = document.getElementById('invoiceSheet');
       const invNum = document.getElementById('invoiceNumber').value || 'Invoice';
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename: `${invNum}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-      html2pdf().set(opt).from(element).save();
+
+      // Create an isolated clone container with explicit A4 dimensions
+      const clone = source.cloneNode(true);
+      clone.style.width = '800px';
+      clone.style.minHeight = '1100px';
+      clone.style.padding = '48px';
+      clone.style.background = '#ffffff';
+      clone.style.color = '#0f172a';
+      clone.style.position = 'fixed';
+      clone.style.top = '-9999px';
+      clone.style.left = '0';
+      clone.style.zIndex = '9999';
+      clone.style.borderRadius = '0px';
+      clone.style.boxShadow = 'none';
+      clone.style.border = 'none';
+      document.body.appendChild(clone);
+
+      // Re-generate QR code in clone so canvas is 100% rendered
+      const upi = document.getElementById('sellerUPI').value.trim() || 'user@upi';
+      const seller = document.getElementById('sellerName').value || 'Seller';
+      const grandTotal = document.getElementById('prevTotal').innerText.replace('₹', '').trim();
+      const qrTarget = clone.querySelector('#qrcode');
+      if (qrTarget) {
+        qrTarget.innerHTML = '';
+        const upiUrl = `upi://pay?pa=${upi}&pn=${encodeURIComponent(seller)}&am=${grandTotal}&cu=INR&tn=${encodeURIComponent('Bill ' + invNum)}`;
+        new QRCode(qrTarget, {
+          text: upiUrl,
+          width: 100,
+          height: 100,
+          colorDark: "#020617",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+
+      // Small 100ms timeout to ensure clone and QR are drawn in DOM
+      setTimeout(() => {
+        const opt = {
+          margin: [8, 8, 8, 8],
+          filename: `${invNum}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+            scale: 2, 
+            useCORS: true, 
+            scrollY: 0,
+            scrollX: 0,
+            backgroundColor: '#ffffff'
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(clone).save().then(() => {
+          if (clone.parentNode) document.body.removeChild(clone);
+        }).catch(err => {
+          console.error("PDF generation error, fallback to print:", err);
+          if (clone.parentNode) document.body.removeChild(clone);
+          window.print();
+        });
+      }, 100);
     }
 
     renderFormItems();
